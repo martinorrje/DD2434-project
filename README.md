@@ -11,7 +11,7 @@
 	- DBLP-Ci: https://networkrepository.com/cit-DBLP.php
 	- CoCit: ???
 	- Cora: https://networkrepository.com/cora-subelj.php
-	- PubMed: ??? Source link finns inte längre https://paperswithcode.com/dataset/pubmed
+	- PubMed: https://networkrepository.com/PubMed.php
 	- DBLP-Au???
 
 	Bra hemsidor som hade många andra dataset om vi vill utöka:
