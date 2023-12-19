@@ -20,6 +20,6 @@
 	Bra hemsidor som hade många andra dataset om vi vill utöka:
 	- https://networkrepository.com
 	- https://snap.stanford.edu/data/index.html
- 	- http://konect.cc/networks/
+ 	- http://konect.cc/
 
 
