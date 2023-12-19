@@ -14,8 +14,12 @@
 	- PubMed: https://networkrepository.com/PubMed.php
 	- DBLP-Au???
 
+  	En länk för Flickr, Youtube och BlogCatalog
+	- http://leitang.net/social_dimension.html
+
 	Bra hemsidor som hade många andra dataset om vi vill utöka:
 	- https://networkrepository.com
 	- https://snap.stanford.edu/data/index.html
+ 	- http://konect.cc/networks/
 
 
