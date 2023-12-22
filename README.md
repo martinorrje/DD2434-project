@@ -11,11 +11,15 @@
 	- DBLP-Ci: https://networkrepository.com/cit-DBLP.php
 	- CoCit: ???
 	- Cora: https://networkrepository.com/cora-subelj.php
-	- PubMed: ??? Source link finns inte längre https://paperswithcode.com/dataset/pubmed
+	- PubMed: https://networkrepository.com/PubMed.php
 	- DBLP-Au???
+
+  	En länk för Flickr, Youtube och BlogCatalog
+	- http://leitang.net/social_dimension.html
 
 	Bra hemsidor som hade många andra dataset om vi vill utöka:
 	- https://networkrepository.com
 	- https://snap.stanford.edu/data/index.html
+ 	- http://konect.cc/
 
 
