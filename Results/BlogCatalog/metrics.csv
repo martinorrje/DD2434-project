@@ -1,0 +1,3 @@
+Node2vec embedding generated with p=0.25, q=4, walk length=80, walks per node=10, sgd_epochs=1
+Dataset; Total Accuracy; F1 macro; F1 micro
+BlogCatalog;0.1469447138700291;0.16219503330439097;0.2933387375465004
