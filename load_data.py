@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import scipy.io
 from scipy.sparse import csr_matrix
-
+import pandas as pd
 
 def load_blogcatalog(data_dir):
     with open(data_dir+"/nodes.csv", "r") as file:
@@ -91,7 +91,7 @@ def load_youtube(data_dir):
 def load_reddit(data_dir):
     with open(data_dir+"/reddit-id_map.json") as json_data:
         id_to_ind = json.load(json_data)
-    nodes = np.array(list(id_to_ind.values()), dtype=int)+1
+    nodes = [i+1 for i in id_to_ind.values()]
     ids = np.array(list(id_to_ind.keys()), dtype=str)
     N_nodes = len(nodes)
     graph_dict = {"edges":{i+1:[] for i in range(N_nodes)}, "nodes":nodes, 
@@ -112,17 +112,62 @@ def load_reddit(data_dir):
     graph_dict['N_edges'] = len(links) 
     c = 0
     for edge in links:
-        node1 = edge['source']
-        node2 = edge['target']
+        node1 = edge['source']+1
+        node2 = edge['target']+1
         graph_dict['edges'][node1].append(node2)
         graph_dict['edges'][node2].append(node1)
-        if c%int(graph_dict['N_edges']/20)==0:
-            print(c)
+        if c%int(graph_dict['N_edges']/10)==0:
+            print(c/graph_dict['N_edges'])
         c += 1
     return graph_dict
-     
+
+
+def load_cora(data_dir):
+    
+    N_edges = 0
+    edges = {}
+    edge_list = pd.read_csv(data_dir+"/out.subelj_cora_cora", header=None, skiprows=2).to_numpy()
+    unique_nodes = set()
+    for edge in edge_list:
+        edge = edge[0].strip().split()
+        source = int(edge[0])
+        target = int(edge[1])
+        if not source in unique_nodes:
+            unique_nodes.add(source)
+        if not target in unique_nodes:
+            unique_nodes.add(target)
+        if not edges.get(source):
+            edges[source] = []
+        edges[source].append(target)
+        N_edges += 1
+    
+    N_nodes = len(unique_nodes)
+    for n in range(N_nodes):
+        if not edges.get(n+1):
+            edges[n+1] = []
+
+    nodes = [i+1 for  i in range(N_nodes)]
+
+    class_list = pd.read_csv(data_dir+"/ent.subelj_cora_cora.class.name", header=None).to_numpy()
+    classname_to_ind = {}
+    N_classes = 0
+    classes_dict = {}
+    for i,row in enumerate(class_list):
+        c = row[0]
+        if not classname_to_ind.get(c):
+            N_classes += 1 
+            classname_to_ind[c] = N_classes
+        classes_dict[i+1] = [classname_to_ind[c]]    # indexed classes and and nodes
+    
+    print(classname_to_ind)
+    graph_dict = {"N_nodes":len(nodes), "nodes":nodes, "edges":edges, "N_edges":N_edges,
+                  "groups":classes_dict, "N_classes":N_classes}
+
+    return graph_dict
+
+
 
 if __name__=="__main__":
     #load_youtube("./Youtube")
-    load_reddit("./Reddit")
-
+    #load_reddit("./Reddit")
+    load_cora("../Data/Cora")
