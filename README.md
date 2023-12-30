@@ -10,9 +10,9 @@
 	- Epinion: https://snap.stanford.edu/data/soc-Epinions1.html
 	- DBLP-Ci: https://networkrepository.com/cit-DBLP.php
 	- CoCit: ???
-	- Cora: https://networkrepository.com/cora-subelj.php
+	- Cora: http://konect.cc/networks/subelj_cora/
 	- PubMed: https://networkrepository.com/PubMed.php
-	- DBLP-Au???
+	- DBLP-Au??? Hittar inte den rätta men vi skulle kunna ta denna om vi absolut vill ha en "collaboration graph". https://snap.stanford.edu/data/com-DBLP.html
 
   	En länk för Flickr, Youtube och BlogCatalog
 	- http://leitang.net/social_dimension.html
