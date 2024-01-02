@@ -2,9 +2,12 @@
 import json
 import sys
 import numpy as np
+import random
 import scipy.io
 from scipy.sparse import csr_matrix
 import pandas as pd
+from scipy.sparse import coo_matrix
+
 
 def determine_multioutput(graph_dict):
     graph_dict['Multioutput'] = False
@@ -38,8 +41,6 @@ def load_blogcatalog(data_dir):
             node2 = int(line.split(",")[1])
             graph_dict['edges'][node1].append(node2)
             graph_dict['edges'][node2].append(node1)
-            # adj_matrix[node1-1, node2-1] = 1
-            #adj_matrix[node2-1, node1-1] = 1
             N_edges += 1
             # Each edge is added only one time since the edge representation (inner product of vertices) is symmetric.
             edges_list.append((node1, node2))
@@ -64,7 +65,6 @@ def load_flickr(data_dir):
     return load_blogcatalog(data_dir)
 
 
-from scipy.sparse import coo_matrix
 def load_youtube(data_dir):
     ## Denna funkar ej än
     mat_file = scipy.io.loadmat(data_dir+"/youtube.mat")
@@ -265,10 +265,62 @@ def load_pubmed(data_dir):
 
 
 
-if __name__=="__main__":
-    import os
-    #load_youtube("../Data/Youtube")
+def load_toy(data_dir):
+    ### Obs this one has zero indexed nodes!
+    with open(data_dir+"/toy-ppi-id_map.json", "r") as json_data:
+        id_to_ind = json.load(json_data)
+    nodes = [i for i in id_to_ind.values()]
+    ids = np.array(list(id_to_ind.keys()), dtype=str)
+    N_nodes = len(nodes)
+    graph_dict = {"edges":{i:[] for i in range(N_nodes)}, "nodes":nodes, 
+                "groups":{i:[] for i in range(N_nodes)}, 'N_edges':0, 
+                "N_nodes":N_nodes}
 
-    load_reddit("../Data/Reddit")
+    g = [i for i in range(121)]
+    with open(data_dir+"/toy-ppi-class_map.json", "r") as json_file:
+        id_to_group = json.load(json_file)
+        for id in ids:
+            groups = np.nonzero(id_to_group[id])[0]
+            node_indx = id_to_ind[id]
+            if len(groups):
+                graph_dict['groups'][node_indx] = groups 
+            else:
+                random_group = [random.choice(g)]
+                graph_dict['groups'][node_indx] = random_group 
+
+
+    N_groups = len(np.unique(id_to_group.values()))
+    graph_dict['N_classes'] = N_groups
+
+    graph_dict = determine_multioutput(graph_dict)
+
+    adj_matrix = np.zeros((N_nodes, N_nodes))
+
+    with open(data_dir+"/toy-ppi-G.json", "r") as json_file:
+        content = json.load(json_file)
+    links = content['links']
+    graph_dict['N_edges'] = len(links) 
+    for edge in links:
+        node1 = edge['source']
+        node2 = edge['target']
+        adj_matrix[node1, node2] = 1
+        graph_dict['edges'][node1].append(node2)
+        graph_dict['edges'][node2].append(node1)
+
+    for i in range(N_nodes):
+        graph_dict['edges'][i] = np.array(graph_dict['edges'][i], dtype=int)
+
+    graph_dict['node_feats'] = np.load(data_dir+"/toy-ppi-feats.npy")
+    graph_dict['adj_matrix'] = adj_matrix
+
+    graph_dict['Multioutput'] = True
+
+    return graph_dict
+
+if __name__=="__main__":
+
+    #load_youtube("../Data/Youtube")
+    load_toy("../Data/toy")
+    #load_reddit("../Data/Reddit")
     #load_cora("../Data/Cora")
     #load_pubmed("../Data/PubMed")
