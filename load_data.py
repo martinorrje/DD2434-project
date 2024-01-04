@@ -19,28 +19,31 @@ def determine_multioutput(graph_dict):
 
 
 def load_blogcatalog(data_dir):
+    ## Edit: changed this one to zero indexing for convenience when developing graphsage
     with open(data_dir+"/nodes.csv", "r") as file:
         N_nodes = len(file.readlines())
 
     # this one is utilized for learning the embedding
-    graph_dict = {"edges":{i+1:[] for i in range(N_nodes)}, "nodes":np.array([i+1 for i in range(N_nodes)]), 
-                "groups":{i+1:[] for i in range(N_nodes)},  "N_nodes":N_nodes}
+    graph_dict = {"edges":{i:[] for i in range(N_nodes)}, "nodes":[i for i in range(N_nodes)], 
+                "groups":{i:[] for i in range(N_nodes)},  "N_nodes":N_nodes}
 
     N_classes = 0
     with open(data_dir+'/groups.csv', "r") as file:
         N_classes = len(file.readlines())
     
     graph_dict['N_classes'] = N_classes
-
+    graph_dict['adj_matrix'] = np.zeros((N_nodes, N_nodes))
     edges_list = []
     N_edges = 0
     #adj_matrix = np.zeros((N_nodes, N_nodes))
     with open(data_dir+"/edges.csv", "r") as file:
         for line in file.readlines():
-            node1  = int(line.split(",")[0])
-            node2 = int(line.split(",")[1])
+            node1  = int(line.split(",")[0])-1
+            node2 = int(line.split(",")[1])-1
             graph_dict['edges'][node1].append(node2)
             graph_dict['edges'][node2].append(node1)
+            graph_dict['adj_matrix'][node1, node2] = 1
+            graph_dict['adj_matrix'][node2, node1] = 1
             N_edges += 1
             # Each edge is added only one time since the edge representation (inner product of vertices) is symmetric.
             edges_list.append((node1, node2))
@@ -48,12 +51,13 @@ def load_blogcatalog(data_dir):
     #graph_dict['adj_matrix'] = adj_matrix
     graph_dict['edges_list'] = edges_list
     graph_dict['N_edges'] = N_edges
-    graph_dict = determine_multioutput(graph_dict)
+    graph_dict['Multioutput'] = True
+
 
     with open(data_dir+"/group-edges.csv", "r") as file:
         for line in file.readlines():
-            node  = int(line.split(",")[0])
-            group = int(line.split(",")[1])
+            node  = int(line.split(",")[0])-1
+            group = int(line.split(",")[1])-1
             graph_dict['groups'][node].append(group)
 
     return graph_dict
@@ -75,7 +79,7 @@ def load_youtube(data_dir):
 
     graph_dict = {"edges":{i+1:[] for i in range(N_nodes)}, "nodes":np.array([i+1 for i in range(N_nodes)]), 
                 "groups":{i+1:[] for i in range(N_nodes)}, 'N_edges':0, 
-                "N_nodes":N_nodes, "N_classes":N_groups, "is_multioutput":False}
+                "N_nodes":N_nodes, "N_classes":N_groups}
     
     groups_matrix =  coo_matrix(groups_matrix)
     rows, cols = groups_matrix.row, groups_matrix.col
