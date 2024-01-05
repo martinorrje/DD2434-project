@@ -3,10 +3,9 @@ import json
 import sys
 import numpy as np
 import random
-import scipy.io
-from scipy.sparse import csr_matrix
+#import scipy.io
 import pandas as pd
-from scipy.sparse import coo_matrix
+#from scipy.sparse import coo_matrix,csr_matrix
 
 
 def determine_multioutput(graph_dict):
@@ -46,7 +45,8 @@ def load_blogcatalog(data_dir):
             graph_dict['adj_matrix'][node2, node1] = 1
             N_edges += 1
             # Each edge is added only one time since the edge representation (inner product of vertices) is symmetric.
-            edges_list.append((node1, node2))
+            edges_list.append([node1, node2])
+            edges_list.append([node2, node1])
 
     #graph_dict['adj_matrix'] = adj_matrix
     graph_dict['edges_list'] = edges_list
@@ -69,48 +69,46 @@ def load_flickr(data_dir):
     return load_blogcatalog(data_dir)
 
 
-def load_youtube(data_dir):
-    ## Denna funkar ej än
-    mat_file = scipy.io.loadmat(data_dir+"/youtube.mat")
-    groups_matrix = mat_file['group']
-    adj_matrix = mat_file['network']
-    N_groups = groups_matrix.shape[1]
-    N_nodes = groups_matrix.shape[0]
+# def load_youtube(data_dir):
+#     ## Denna funkar ej än
+#     mat_file = scipy.io.loadmat(data_dir+"/youtube.mat")
+#     groups_matrix = mat_file['group']
+#     adj_matrix = mat_file['network']
+#     N_groups = groups_matrix.shape[1]
+#     N_nodes = groups_matrix.shape[0]
 
-    graph_dict = {"edges":{i+1:[] for i in range(N_nodes)}, "nodes":np.array([i+1 for i in range(N_nodes)]), 
-                "groups":{i+1:[] for i in range(N_nodes)}, 'N_edges':0, 
-                "N_nodes":N_nodes, "N_classes":N_groups}
+#     graph_dict = {"edges":{i+1:[] for i in range(N_nodes)}, "nodes":np.array([i+1 for i in range(N_nodes)]), 
+#                 "groups":{i+1:[] for i in range(N_nodes)}, 'N_edges':0, 
+#                 "N_nodes":N_nodes, "N_classes":N_groups}
     
-    groups_matrix =  coo_matrix(groups_matrix)
-    rows, cols = groups_matrix.row, groups_matrix.col
-    data = groups_matrix.data
-    print(type(data))
-    print(len(data))
-    # To print the first 10 non-zero elements along with their indices
-    for i in range(N_nodes):
-        node_nr = rows[i]+1
-        class_nr = cols[i]+1
-        graph_dict['groups'][node_nr].append(class_nr)
-        if len(graph_dict['groups'][node_nr])>1:
-            graph_dict["is_multioutput"] = True
-    print(graph_dict['is_multioutput'])
-    N_classes = np.unique(list(graph_dict['groups'].values()))
+#     groups_matrix =  coo_matrix(groups_matrix)
+#     rows, cols = groups_matrix.row, groups_matrix.col
+#     data = groups_matrix.data
+#     print(type(data))
+#     print(len(data))
+#     # To print the first 10 non-zero elements along with their indices
+#     for i in range(N_nodes):
+#         node_nr = rows[i]+1
+#         class_nr = cols[i]+1
+#         graph_dict['groups'][node_nr].append(class_nr)
+#         if len(graph_dict['groups'][node_nr])>1:
+#             graph_dict["is_multioutput"] = True
+#     print(graph_dict['is_multioutput'])
+#     N_classes = np.unique(list(graph_dict['groups'].values()))
+#     row_inds, col_inds = adj_matrix.nonzero()
+#     N_edges_double = row_inds.shape[0]
 
+#     for i in range(N_edges_double):
+#         row = row_inds[i]
+#         col = col_inds[i]
+#         graph_dict["edges"][row+1].append(col+1)
 
-    row_inds, col_inds = adj_matrix.nonzero()
-    N_edges_double = row_inds.shape[0]
+#         if i%int(N_edges_double/10)==0:
+#             print(i/N_edges_double)
 
-    for i in range(N_edges_double):
-        row = row_inds[i]
-        col = col_inds[i]
-        graph_dict["edges"][row+1].append(col+1)
-
-        if i%int(N_edges_double/10)==0:
-            print(i/N_edges_double)
-
-    graph_dict = determine_multioutput(graph_dict)
+#     graph_dict = determine_multioutput(graph_dict)
   
-    return graph_dict
+#     return graph_dict
     
 
 def load_reddit(data_dir):
@@ -304,12 +302,15 @@ def load_toy(data_dir):
         content = json.load(json_file)
     links = content['links']
     graph_dict['N_edges'] = len(links) 
+    graph_dict['edges_list'] = []
     for edge in links:
         node1 = edge['source']
         node2 = edge['target']
         adj_matrix[node1, node2] = 1
         graph_dict['edges'][node1].append(node2)
         graph_dict['edges'][node2].append(node1)
+        graph_dict['edges_list'].append(([node1, node2]))
+        graph_dict['edges_list'].append(([node2, node1]))
 
     for i in range(N_nodes):
         graph_dict['edges'][i] = np.array(graph_dict['edges'][i], dtype=int)
