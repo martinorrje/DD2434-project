@@ -5,13 +5,65 @@ import numpy as np
 import random
 #import scipy.io
 import pandas as pd
-#from scipy.sparse import coo_matrix,csr_matrix
+from torch_geometric.datasets import Coauthor, Actor, Reddit, Planetoid
 
 
-def determine_multioutput(graph_dict):
+def load_geometric_dataset(name):
+    """"undirected"""
+    if name=="Coauthor":
+        data = Coauthor(root='/tmp/coauthor', name='CS')[0]
+        N_classes = 15
+    elif name=="Actor":
+        data = Actor(root='/tmp/Actor')[0]
+        N_classes = 5
+    elif name=="Reddit":
+        data = Reddit(root='/tmp/Reddit')[0]
+        N_classes = 41
+    elif name=="Citeseer":
+        N_classes = 6
+        data =  Planetoid(root='/tmp/citeseer', name='CiteSeer')
+
+    node_features = data.x  # Node features
+    node_labels = data.y  # Node labels (if available)
+    N_nodes = node_features.shape[0]
+    edges_dict = {i:[] for i in range(N_nodes)}
+    adj_matrix = np.zeros((N_nodes, N_nodes))
+    N_edges = 0
+    for i in range(data.edge_index.shape[1]):
+        edge = data.edge_index[:, i] 
+        src = int(edge[0].item())
+        target = int(edge[1].item())
+        if src==target:
+            continue
+        edges_dict[src].append(target)
+        edges_dict[target].append(src)
+        adj_matrix[src, target] = 1
+        adj_matrix[target, src] = 1
+        N_edges += 1
+    edges_dict = remove_doubles(edges_dict)
+    labels_dict = {}
+    for i in range(N_nodes):
+        labels_dict[i] = [node_labels[i]]
+
+    graph_object = {"edges":edges_dict, "nodes":[i for i in range(N_nodes)], "N_nodes":N_nodes, "N_classes":N_classes, "N_edges":N_edges,
+                     "adj_matrix":adj_matrix, "groups":labels_dict, "Multioutput":False, "edges_list":data.edge_index}
+    return graph_object
+
+
+def remove_doubles(edge_dict):
+    data = {}
+    for node, neighbors in edge_dict.items():
+        data[node] = list(np.unique(neighbors))
+    return data
+
+def determine_multioutput(graph_dict, indexing=0):
     graph_dict['Multioutput'] = False
     for i in range(graph_dict['N_nodes']):
-        if len(graph_dict["groups"][i+1])>1:
+        if indexing == 0:
+            j = i
+        else:
+            j = i+1
+        if len(graph_dict["groups"][j])>1:
             graph_dict['Multioutput'] = True
             break
     return graph_dict
@@ -52,7 +104,7 @@ def load_blogcatalog(data_dir):
     graph_dict['edges_list'] = edges_list
     graph_dict['N_edges'] = N_edges
     graph_dict['Multioutput'] = True
-
+    graph_dict['edges'] = remove_doubles(graph_dict['edges'])
 
     with open(data_dir+"/group-edges.csv", "r") as file:
         for line in file.readlines():
@@ -66,50 +118,10 @@ def load_blogcatalog(data_dir):
 
 def load_flickr(data_dir):
     """has the exact same file structure as blogcatalog"""
-    return load_blogcatalog(data_dir)
+    graph_dict = load_blogcatalog(data_dir)
+    graph_dict = determine_multioutput(graph_dict)
+    return graph_dict
 
-
-# def load_youtube(data_dir):
-#     ## Denna funkar ej än
-#     mat_file = scipy.io.loadmat(data_dir+"/youtube.mat")
-#     groups_matrix = mat_file['group']
-#     adj_matrix = mat_file['network']
-#     N_groups = groups_matrix.shape[1]
-#     N_nodes = groups_matrix.shape[0]
-
-#     graph_dict = {"edges":{i+1:[] for i in range(N_nodes)}, "nodes":np.array([i+1 for i in range(N_nodes)]), 
-#                 "groups":{i+1:[] for i in range(N_nodes)}, 'N_edges':0, 
-#                 "N_nodes":N_nodes, "N_classes":N_groups}
-    
-#     groups_matrix =  coo_matrix(groups_matrix)
-#     rows, cols = groups_matrix.row, groups_matrix.col
-#     data = groups_matrix.data
-#     print(type(data))
-#     print(len(data))
-#     # To print the first 10 non-zero elements along with their indices
-#     for i in range(N_nodes):
-#         node_nr = rows[i]+1
-#         class_nr = cols[i]+1
-#         graph_dict['groups'][node_nr].append(class_nr)
-#         if len(graph_dict['groups'][node_nr])>1:
-#             graph_dict["is_multioutput"] = True
-#     print(graph_dict['is_multioutput'])
-#     N_classes = np.unique(list(graph_dict['groups'].values()))
-#     row_inds, col_inds = adj_matrix.nonzero()
-#     N_edges_double = row_inds.shape[0]
-
-#     for i in range(N_edges_double):
-#         row = row_inds[i]
-#         col = col_inds[i]
-#         graph_dict["edges"][row+1].append(col+1)
-
-#         if i%int(N_edges_double/10)==0:
-#             print(i/N_edges_double)
-
-#     graph_dict = determine_multioutput(graph_dict)
-  
-#     return graph_dict
-    
 
 def load_reddit(data_dir):
     with open(data_dir+"/reddit-id_map.json", "r") as json_data:
@@ -131,7 +143,7 @@ def load_reddit(data_dir):
     graph_dict['N_classes'] = N_groups
 
     graph_dict = determine_multioutput(graph_dict)
-
+    
     with open(data_dir+"/reddit-G.json", "r") as json_file:
         content = json.load(json_file)
 
@@ -146,6 +158,7 @@ def load_reddit(data_dir):
         if c%int(graph_dict['N_edges']/10)==0:
             print(c/graph_dict['N_edges'])
         c += 1
+    graph_dict['edges'] = remove_doubles(graph_dict['edges'])
     return graph_dict
 
 
@@ -189,6 +202,7 @@ def load_cora(data_dir):
                   "groups":classes_dict, "N_classes":N_classes}
     
     graph_dict = determine_multioutput(graph_dict)
+    graph_dict['edges'] = remove_doubles(graph_dict['edges'])
     return graph_dict
 
 
@@ -220,13 +234,15 @@ def load_dblp_ci(data_dir):
     nodes = [i+1 for  i in range(N_nodes)]
     graph_dict = {"N_nodes":len(nodes), "nodes":nodes, "edges":edges, "N_edges":N_edges}
     graph_dict = determine_multioutput(graph_dict)
+    graph_dict['edges'] = remove_doubles(graph_dict['edges'])
     return graph_dict
 
 
 
 def load_pubmed(data_dir):
+    ## edit: zero indexed 
     N_edges = 0
-    edges = {}
+    edges_temp = {}
     edge_list = pd.read_csv(data_dir+"/PubMed.edges", header=None, skiprows=0).to_numpy()
     node_to_ind = {}
     N_nodes = 0
@@ -234,35 +250,45 @@ def load_pubmed(data_dir):
         source = edge[0]
         target = edge[1]
         if not node_to_ind.get(source):
-            N_nodes += 1
             node_to_ind[source] = N_nodes
-        if not node_to_ind.get(target):
             N_nodes += 1
+        if not node_to_ind.get(target):
             node_to_ind[target] = N_nodes
-        if not edges.get(source):
-            edges[source] = []
-        edges[source].append(target)
+            N_nodes += 1
+        if not edges_temp.get(source):
+            edges_temp[source] = []
+        edges_temp[source].append(target)
         N_edges += 1
-    
+        
     # in case there are disconnected nodes, this is necessary so that other code doesn't break
-    for n in range(N_nodes):
-        if not edges.get(n+1):
-            edges[n+1] = []
-
-    nodes = [i+1 for  i in range(N_nodes)]
+    edges = {i:[] for i in range(N_nodes)}
+    adj_matrix = np.zeros((N_nodes, N_nodes))
+    edges_list = []
+    for src, targets in edges_temp.items():
+        true_neighbor_indices = []
+        true_src_index = node_to_ind[src]
+        for t in targets:
+            true_target_index = node_to_ind[t]
+            adj_matrix[true_src_index, true_target_index] = 1
+            true_neighbor_indices.append(true_target_index)
+            edges_list.append([true_src_index, true_target_index])
+        edges[true_src_index] = true_neighbor_indices  
+    
+    nodes = [i for  i in range(N_nodes)]
 
     class_list = pd.read_csv(data_dir+"/PubMed.node_labels", header=None).to_numpy()
-    classes_dict = {i+1:[] for i in range(N_nodes)}
+    classes_dict = {i:[] for i in range(N_nodes)}
+
     for i,row in enumerate(class_list):
         node_id, label = row
         node_index = node_to_ind[node_id]
         classes_dict[node_index].append(int(label))
         
-    N_classes = len(np.unique(list(classes_dict.values())))
+    N_classes = 3
     graph_dict = {"N_nodes":len(nodes), "nodes":nodes, "edges":edges, "N_edges":N_edges,
-                  "groups":classes_dict, "N_classes":N_classes}
+                  "groups":classes_dict, "N_classes":N_classes, "adj_matrix":adj_matrix, "edges_list":edges_list}
     graph_dict = determine_multioutput(graph_dict)
-
+    graph_dict['edges'] = remove_doubles(graph_dict['edges'])
     return graph_dict
 
 
@@ -319,13 +345,14 @@ def load_toy(data_dir):
     graph_dict['adj_matrix'] = adj_matrix
 
     graph_dict['Multioutput'] = True
-
+    graph_dict['edges'] = remove_doubles(graph_dict['edges'])
     return graph_dict
 
 if __name__=="__main__":
 
     #load_youtube("../Data/Youtube")
-    load_toy("../Data/toy")
+    #load_toy("../Data/toy")
     #load_reddit("../Data/Reddit")
     #load_cora("../Data/Cora")
-    #load_pubmed("../Data/PubMed")
+    load_pubmed("../Data/PubMed")
+  
