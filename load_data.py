@@ -5,7 +5,7 @@ import numpy as np
 import random
 #import scipy.io
 import pandas as pd
-from torch_geometric.datasets import Coauthor, Actor, Reddit, Planetoid
+from torch_geometric.datasets import Coauthor, Actor, Reddit2, Planetoid
 
 
 def load_geometric_dataset(name):
@@ -17,7 +17,7 @@ def load_geometric_dataset(name):
         data = Actor(root='/tmp/Actor')[0]
         N_classes = 5
     elif name=="Reddit":
-        data = Reddit(root='/tmp/Reddit')[0]
+        data = Reddit2(root='/tmp/Reddit')[0]
         N_classes = 41
     elif name=="Citeseer":
         N_classes = 6
@@ -29,24 +29,29 @@ def load_geometric_dataset(name):
     edges_dict = {i:[] for i in range(N_nodes)}
     adj_matrix = np.zeros((N_nodes, N_nodes))
     N_edges = 0
+    c = 0
     for i in range(data.edge_index.shape[1]):
         edge = data.edge_index[:, i] 
         src = int(edge[0].item())
         target = int(edge[1].item())
         if src==target:
+            c+=1
             continue
-        edges_dict[src].append(target)
-        edges_dict[target].append(src)
-        adj_matrix[src, target] = 1
-        adj_matrix[target, src] = 1
-        N_edges += 1
-    edges_dict = remove_doubles(edges_dict)
+        # Check if we already added this edge (since the data is undirected)
+        if adj_matrix[src, target]==0:
+            edges_dict[src].append(target)
+            edges_dict[target].append(src)
+            adj_matrix[src, target] = 1
+            adj_matrix[target, src] = 1
+            N_edges += 1
+
+    print("nr of self-loop edges:", c)
     labels_dict = {}
     for i in range(N_nodes):
         labels_dict[i] = [node_labels[i]]
 
     graph_object = {"edges":edges_dict, "nodes":[i for i in range(N_nodes)], "N_nodes":N_nodes, "N_classes":N_classes, "N_edges":N_edges,
-                     "adj_matrix":adj_matrix, "groups":labels_dict, "Multioutput":False, "edges_list":data.edge_index}
+                     "adj_matrix":adj_matrix, "groups":labels_dict, "Multioutput":False, "edges_list":data.edge_index, "node_feats":node_features}
     return graph_object
 
 
@@ -56,21 +61,17 @@ def remove_doubles(edge_dict):
         data[node] = list(np.unique(neighbors))
     return data
 
-def determine_multioutput(graph_dict, indexing=0):
+def determine_multioutput(graph_dict):
     graph_dict['Multioutput'] = False
     for i in range(graph_dict['N_nodes']):
-        if indexing == 0:
-            j = i
-        else:
-            j = i+1
-        if len(graph_dict["groups"][j])>1:
+        if len(graph_dict["groups"][i])>1:
             graph_dict['Multioutput'] = True
             break
     return graph_dict
 
 
 def load_blogcatalog(data_dir):
-    ## Edit: changed this one to zero indexing for convenience when developing graphsage
+    # Edges are undirected but appear once in the file i.e. (1,2) only exists, not (2,1)
     with open(data_dir+"/nodes.csv", "r") as file:
         N_nodes = len(file.readlines())
 
@@ -115,7 +116,6 @@ def load_blogcatalog(data_dir):
     return graph_dict
 
 
-
 def load_flickr(data_dir):
     """has the exact same file structure as blogcatalog"""
     graph_dict = load_blogcatalog(data_dir)
@@ -126,18 +126,18 @@ def load_flickr(data_dir):
 def load_reddit(data_dir):
     with open(data_dir+"/reddit-id_map.json", "r") as json_data:
         id_to_ind = json.load(json_data)
-    nodes = [i+1 for i in id_to_ind.values()]
+    nodes = [i for i in id_to_ind.values()]
     ids = np.array(list(id_to_ind.keys()), dtype=str)
     N_nodes = len(nodes)
-    graph_dict = {"edges":{i+1:[] for i in range(N_nodes)}, "nodes":nodes, 
-                "groups":{i+1:[] for i in range(N_nodes)}, 'N_edges':0, 
+    graph_dict = {"edges":{i:[] for i in range(N_nodes)}, "nodes":nodes, 
+                "groups":{i:[] for i in range(N_nodes)}, 'N_edges':0, 
                 "N_nodes":N_nodes}
 
     with open(data_dir+"/reddit-class_map.json", "r") as json_file:
         id_to_group = json.load(json_file)
         for id in ids:
-            group = id_to_group[id]+1   # groups and nodes are 1 indexed
-            node_indx = id_to_ind[id]+1
+            group = id_to_group[id]   
+            node_indx = id_to_ind[id]
             graph_dict['groups'][node_indx].append(group)
     N_groups = len(np.unique(list(graph_dict['groups'].values())))
     graph_dict['N_classes'] = N_groups
@@ -151,26 +151,27 @@ def load_reddit(data_dir):
     graph_dict['N_edges'] = len(links) 
     c = 0
     for edge in links:
-        node1 = edge['source']+1
-        node2 = edge['target']+1
+        node1 = edge['source']
+        node2 = edge['target']
         graph_dict['edges'][node1].append(node2)
         graph_dict['edges'][node2].append(node1)
         if c%int(graph_dict['N_edges']/10)==0:
             print(c/graph_dict['N_edges'])
         c += 1
-    graph_dict['edges'] = remove_doubles(graph_dict['edges'])
+    #graph_dict['edges'] = remove_doubles(graph_dict['edges'])
     return graph_dict
 
 
 def load_cora(data_dir):
     N_edges = 0
     edges = {}
-    edge_list = pd.read_csv(data_dir+"/out.subelj_cora_cora", header=None, skiprows=2).to_numpy()
+    edge_list_raw = pd.read_csv(data_dir+"/out.subelj_cora_cora", header=None, skiprows=2).to_numpy()
     unique_nodes = set()
-    for edge in edge_list:
+    edge_list = []
+    for edge in edge_list_raw:
         edge = edge[0].strip().split()
-        source = int(edge[0])
-        target = int(edge[1])
+        source = int(edge[0])-1
+        target = int(edge[1])-1
         if not source in unique_nodes:
             unique_nodes.add(source)
         if not target in unique_nodes:
@@ -179,13 +180,14 @@ def load_cora(data_dir):
             edges[source] = []
         edges[source].append(target)
         N_edges += 1
+        edge_list.append([source, target])
     
     N_nodes = len(unique_nodes)
     for n in range(N_nodes):
         if not edges.get(n+1):
-            edges[n+1] = []
+            edges[n] = []
 
-    nodes = [i+1 for  i in range(N_nodes)]
+    nodes = [i for  i in range(N_nodes)]
 
     class_list = pd.read_csv(data_dir+"/ent.subelj_cora_cora.class.name", header=None).to_numpy()
     classname_to_ind = {}
@@ -194,47 +196,15 @@ def load_cora(data_dir):
     for i,row in enumerate(class_list):
         c = row[0]
         if not classname_to_ind.get(c):
-            N_classes += 1 
             classname_to_ind[c] = N_classes
-        classes_dict[i+1] = [classname_to_ind[c]]    # indexed classes and and nodes
+            N_classes += 1 
+        classes_dict[i] = [classname_to_ind[c]]    # indexed classes and nodes
     
     graph_dict = {"N_nodes":len(nodes), "nodes":nodes, "edges":edges, "N_edges":N_edges,
-                  "groups":classes_dict, "N_classes":N_classes}
+                  "groups":classes_dict, "N_classes":N_classes, "edges_list":edge_list}
     
     graph_dict = determine_multioutput(graph_dict)
-    graph_dict['edges'] = remove_doubles(graph_dict['edges'])
-    return graph_dict
-
-
-
-def load_dblp_ci(data_dir):
-    """Has no node labels"""
-    N_edges = 0
-    edges = {}
-    edge_list = pd.read_csv(data_dir+"/out.dblp-cite", header=None, skiprows=1).to_numpy()
-    unique_nodes = set()
-    for edge in edge_list:
-        edge = edge[0].strip().split()
-        source = int(edge[0])
-        target = int(edge[1])
-        if not source in unique_nodes:
-            unique_nodes.add(source)
-        if not target in unique_nodes:
-            unique_nodes.add(target)
-        if not edges.get(source):
-            edges[source] = []
-        edges[source].append(target)
-        N_edges += 1
-    
-    N_nodes = len(unique_nodes)
-    for n in range(N_nodes):
-        if not edges.get(n+1):
-            edges[n+1] = []
-
-    nodes = [i+1 for  i in range(N_nodes)]
-    graph_dict = {"N_nodes":len(nodes), "nodes":nodes, "edges":edges, "N_edges":N_edges}
-    graph_dict = determine_multioutput(graph_dict)
-    graph_dict['edges'] = remove_doubles(graph_dict['edges'])
+    #graph_dict['edges'] = remove_doubles(graph_dict['edges'])
     return graph_dict
 
 
@@ -288,7 +258,7 @@ def load_pubmed(data_dir):
     graph_dict = {"N_nodes":len(nodes), "nodes":nodes, "edges":edges, "N_edges":N_edges,
                   "groups":classes_dict, "N_classes":N_classes, "adj_matrix":adj_matrix, "edges_list":edges_list}
     graph_dict = determine_multioutput(graph_dict)
-    graph_dict['edges'] = remove_doubles(graph_dict['edges'])
+    #graph_dict['edges'] = remove_doubles(graph_dict['edges'])
     return graph_dict
 
 
